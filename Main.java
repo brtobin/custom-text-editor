@@ -13,29 +13,26 @@ import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Insets;
-import javafx.geometry.Pos;
-import javafx.scene.Group;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
-import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
-import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.Alert.AlertType;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import java.awt.event.KeyListener;
 
 public class Main extends Application {
   // store any command-line arguments that were entered.
@@ -57,6 +54,9 @@ public class Main extends Application {
   private Random rand = new Random();
   private MenuBar menuBar;
   String fileName = "";
+  private boolean saved = true;
+  private String title;
+  private String starTitle;
 
   public Main() {
     int size;
@@ -176,6 +176,7 @@ public class Main extends Application {
       content = "";
     }
     writer.write(content);
+    saved = true;
     writer.close();
   }
 
@@ -204,13 +205,14 @@ public class Main extends Application {
     menuBar = new MenuBar();
     // set up the main menu options
     Menu menuFile = new Menu("File");
-    Menu menuOpen = new Menu("Open..");
+    Menu menuOpen = new Menu("Open");
     Menu menuOther = new Menu("Other");
     // set up the menu sub options
     MenuItem saveAsFile = new MenuItem("Save As..");
     MenuItem saveFile = new MenuItem("Save");
-    menuFile.getItems().addAll(saveFile, saveAsFile);
-    MenuItem openFile = new MenuItem("Open File");
+    MenuItem newFile = new MenuItem("Create New File");
+    menuFile.getItems().addAll(newFile, saveFile, saveAsFile);
+    MenuItem openFile = new MenuItem("Open File..");
     menuOpen.getItems().addAll(openFile);
     // create the finished menu bar
     menuBar.getMenus().addAll(menuFile, menuOpen, menuOther);
@@ -236,7 +238,45 @@ public class Main extends Application {
   }
 
   /**
+   * Open a file from local drive
+   * @param toOpen the file to open
+   * @param choose the dialog to access a file from the local drive
+   * @param primaryStage the stage to present the GUI
+   * @param sc scanner to read in the file
+   * @param note the note space to present the file
+   */
+  private void openFile(File toOpen, FileChooser choose, Stage primaryStage,
+      Scanner sc, TextArea note) {
+    toOpen = choose.showOpenDialog(primaryStage);
+    if (toOpen != null) {
+      try {
+        // clear the note space before presenting the selected file
+        note.clear();
+        fileName = toOpen.getName();
+        sc = new Scanner(toOpen);
+        while (sc.hasNextLine()) {
+          note.appendText(sc.nextLine() + "\n");
+        }
+        if (fileName.contentEquals("")) {
+          primaryStage.setTitle(APP_TITLE);
+          title = APP_TITLE;
+        } else {
+          primaryStage.setTitle(fileName);
+          title = fileName;
+        }
+        saved = true;
+      } catch (FileNotFoundException e1) {
+        System.out.println("Could not find file");
+      } finally {
+        if (sc != null)
+          sc.close();
+      }
+    }
+  }
+
+  /**
    * Create the menu window for saving a new file
+   * 
    * @param note
    */
   private void createSaveAsPopUp(TextArea note) {
@@ -320,27 +360,27 @@ public class Main extends Application {
     popUp.sizeToScene();
     popUp.showAndWait();
   }
-  
+
   /**
    * Update/save an existing file
+   * 
    * @param note the current note area
    */
   private void saveExisting(TextArea note) {
     PrintWriter writer;
-    try {  
+    try {
       String content = note.getText();
       writer = new PrintWriter(fileName, "UTF-8");
       if (content == null) {
         content = "";
       }
       writer.write(content);
+      saved = true;
       writer.close();
-    } catch (FileNotFoundException e) {  // if the file is not existing, save as a new file
-      createSaveAsPopUp(note);    
+    } catch (FileNotFoundException e) { // if the file is not existing, save as a new file
+      createSaveAsPopUp(note);
     } catch (UnsupportedEncodingException e) {
-      
     }
-    
   }
 
   @Override
@@ -349,61 +389,85 @@ public class Main extends Application {
     TextArea note = new TextArea();
     setUpMenuBar();
     MenuItem open = menuBar.getMenus().get(1);
-    MenuItem saveAs = menuBar.getMenus().get(0).getItems().get(1);
-    MenuItem save = menuBar.getMenus().get(0).getItems().get(0);
-    
+    MenuItem saveAs = menuBar.getMenus().get(0).getItems().get(2);
+    MenuItem save = menuBar.getMenus().get(0).getItems().get(1);
+    MenuItem newFile = menuBar.getMenus().get(0).getItems().get(0);
     // Create functionality to open file
     open.setOnAction(new EventHandler<ActionEvent>() {
       public void handle(ActionEvent e) {
         FileChooser choose = new FileChooser();
-        File toOpen = choose.showOpenDialog(primaryStage);
+        File toOpen = null;
         Scanner sc = null;
-        try {
-          // clear the note space before presenting the selected file
-          note.clear();
-          fileName = toOpen.getName();
-          sc = new Scanner(toOpen);
-          while (sc.hasNextLine()) {
-            note.appendText(sc.nextLine() + "\n");
+        if (saved == false) {
+          Alert warning = new Alert(AlertType.CONFIRMATION);
+          warning.setTitle("Unsaved File");
+          warning.setHeaderText("The file you are about to close is not saved");
+          warning.setContentText("Would you still like" + "to continue?");
+          ButtonType cont = new ButtonType("Continue");
+          ButtonType canc = new ButtonType("Cancel");
+          warning.getButtonTypes().setAll(cont, canc);
+          Optional<ButtonType> result = warning.showAndWait();
+          if (result.get() == cont) {
+            openFile(toOpen, choose, primaryStage, sc, note);
           }
-          if (fileName.contentEquals("")) {
-            primaryStage.setTitle(APP_TITLE);
-          } else {
-            primaryStage.setTitle(fileName);
-          }
-        } catch (FileNotFoundException e1) {
-          System.out.println("Could not find file");
-        } finally {
-          if (sc != null)
-            sc.close();
-        }
+        } else {
+          openFile(toOpen, choose, primaryStage, sc, note);
+        }      
       }
     });
     // Create functionality to newly save a file
     saveAs.setOnAction(new EventHandler<ActionEvent>() {
       public void handle(ActionEvent e) {
         createSaveAsPopUp(note);
+        primaryStage.setTitle(title);
       }
     });
-    
     // Create functionality to save an existing file if requested
     save.setOnAction(new EventHandler<ActionEvent>() {
-          public void handle(ActionEvent e) {
-            saveExisting(note);
-          }
-        });
-    
-    
+      public void handle(ActionEvent e) {
+        saveExisting(note);
+        primaryStage.setTitle(title);
+      }
+    });
+    // Create functionality to start editing a new file
+    newFile.setOnAction(new EventHandler<ActionEvent>() {
+      public void handle(ActionEvent e) {
+        if (saved == false) {
+          Alert warning = new Alert(AlertType.CONFIRMATION);
+          warning.setTitle("Unsaved File");
+          warning.setHeaderText("The file you are about to close is not saved");
+          warning.setContentText("Would you still like" + "to continue?");
+          ButtonType cont = new ButtonType("Continue");
+          ButtonType canc = new ButtonType("Cancel");
+          warning.getButtonTypes().setAll(cont, canc);
+          Optional<ButtonType> result = warning.showAndWait();
+          if (result.get() == cont) {
+            fileName = "";
+            note.clear();
+            primaryStage.setTitle(APP_TITLE);
+            title = APP_TITLE;
+          } 
+        } else {
+          fileName = "";
+          note.clear();
+          primaryStage.setTitle(APP_TITLE);
+          title = APP_TITLE;
+        }
+      }
+    });
+    note.addEventFilter(KeyEvent.ANY, event -> {
+      saved = false;
+      starTitle = title + "*";
+      primaryStage.setTitle(starTitle);
+    });
     // Set up the application window
     root.setTop(menuBar);
     root.setCenter(note);
     Scene mainScene = new Scene(root, WINDOW_WIDTH, WINDOW_HEIGHT);
-
     primaryStage.setTitle(APP_TITLE);
-    
+    title = APP_TITLE;
     primaryStage.setScene(mainScene);
     primaryStage.show();
-    
     primaryStage.setOnCloseRequest(event -> {
       try {
         closeLog();
