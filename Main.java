@@ -177,6 +177,7 @@ public class Main extends Application {
     }
     writer.write(content);
     saved = true;
+    this.fileName = fileName;
     writer.close();
   }
 
@@ -237,14 +238,6 @@ public class Main extends Application {
     return rslt;
   }
 
-  /**
-   * Open a file from local drive
-   * @param toOpen the file to open
-   * @param choose the dialog to access a file from the local drive
-   * @param primaryStage the stage to present the GUI
-   * @param sc scanner to read in the file
-   * @param note the note space to present the file
-   */
   private void openFile(File toOpen, FileChooser choose, Stage primaryStage,
       Scanner sc, TextArea note) {
     toOpen = choose.showOpenDialog(primaryStage);
@@ -271,6 +264,28 @@ public class Main extends Application {
         if (sc != null)
           sc.close();
       }
+    }
+  }
+
+  private void openFile(String fileName, Stage primaryStage, TextArea note) {
+    File toOpen = new File(fileName);
+    Scanner sc = null;
+    try {
+      sc = new Scanner(toOpen);
+      note.clear();
+      while (sc.hasNextLine()) {
+        note.appendText(sc.nextLine() + "\n");
+      }
+      if (fileName.contentEquals("")) {
+        primaryStage.setTitle(APP_TITLE);
+        title = APP_TITLE;
+      } else {
+        primaryStage.setTitle(fileName);
+        title = fileName;
+      }
+      saved = true;
+      sc.close();
+    } catch (FileNotFoundException e) {
     }
   }
 
@@ -314,7 +329,6 @@ public class Main extends Application {
           if (fileMenu.getValue() != null) {
             try {
               fileName = formatFileName(fileNameInput.getText());
-              System.out.println("The file name is: " + fileName);
               try {
                 if (fileName.contentEquals("")) {
                   throw new NoNameException();
@@ -339,11 +353,19 @@ public class Main extends Application {
             throw new NoFileTypeException();
           }
         } catch (NoFileTypeException e1) {
-          Alert noType = new Alert(AlertType.WARNING);
-          noType.setTitle("No file type entered");
-          noType.setHeaderText(null);
-          noType.setContentText(e1.getMessage());
-          noType.showAndWait();
+          fileName = fileNameInput.getText();
+          if (fileName.contains(".")) {
+            saveExisting(note);
+            popUp.close();
+            updateCountsNoTypeChosen(fileName);
+            title = fileName;
+          } else {
+            Alert noType = new Alert(AlertType.WARNING);
+            noType.setTitle("No file type entered");
+            noType.setHeaderText(null);
+            noType.setContentText(e1.getMessage());
+            noType.showAndWait();
+          }
         }
       }
     });
@@ -383,6 +405,57 @@ public class Main extends Application {
     }
   }
 
+  private void updateCountsNoTypeChosen(String fileName) {
+    int indexOfSuffix = fileName.indexOf(".");
+    
+    int code = 0;
+    String substring = fileName.substring(indexOfSuffix);
+    if (substring.contentEquals(".js") || substring.contentEquals(".es6")
+        || substring.contentEquals(".mjs") || substring.contentEquals(".cjs")
+        || substring.contentEquals(".pac")) {
+      code = 1;
+    }
+    if (substring.contentEquals(".txt")
+        || substring.contentEquals(".gitignore")) {
+      code = 2;
+    }
+    if (substring.contentEquals(".bat")
+        || substring.contentEquals(".cmd")) {
+      code = 3;
+    }
+    if (substring.contentEquals(".c")
+        || substring.contentEquals(".i")) {
+      code = 4;
+    }
+    if (substring.contentEquals(".java")
+        || substring.contentEquals(".jav")) {
+      code = 5;
+    }
+    if (substring.contentEquals(".mk")) {
+      code = 6;
+    }
+    switch (code) {
+      case (1):
+        javascript++;
+        break;
+      case (2):
+        plain++;
+        break;
+      case (3):
+        batch++;
+        break;
+      case (4):
+        c++;
+        break;
+      case (5):
+        java++;
+        break;
+      case (6):
+        make++;
+        break;
+    }
+  }
+
   @Override
   public void start(Stage primaryStage) throws Exception {
     BorderPane root = new BorderPane();
@@ -402,7 +475,7 @@ public class Main extends Application {
           Alert warning = new Alert(AlertType.CONFIRMATION);
           warning.setTitle("Unsaved File");
           warning.setHeaderText("The file you are about to close is not saved");
-          warning.setContentText("Would you still like" + "to continue?");
+          warning.setContentText("Would you still like to continue?");
           ButtonType cont = new ButtonType("Continue");
           ButtonType canc = new ButtonType("Cancel");
           warning.getButtonTypes().setAll(cont, canc);
@@ -412,13 +485,14 @@ public class Main extends Application {
           }
         } else {
           openFile(toOpen, choose, primaryStage, sc, note);
-        }      
+        }
       }
     });
     // Create functionality to newly save a file
     saveAs.setOnAction(new EventHandler<ActionEvent>() {
       public void handle(ActionEvent e) {
         createSaveAsPopUp(note);
+        openFile(fileName, primaryStage, note);
         primaryStage.setTitle(title);
       }
     });
@@ -446,7 +520,7 @@ public class Main extends Application {
             note.clear();
             primaryStage.setTitle(APP_TITLE);
             title = APP_TITLE;
-          } 
+          }
         } else {
           fileName = "";
           note.clear();
